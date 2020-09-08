@@ -14,7 +14,7 @@ const MILLION = new BN(1_000000);
 const BASE_TOKEN = MILLION.mul(MILLION).mul(MILLION);
 const MICRO_BASE_TOKEN = MILLION.mul(MILLION);
 
-const EU_WEST_2_URL = "ws://ec2-18-132-203-154.eu-west-2.compute.amazonaws.com:9944";
+const EU_WEST_2_URL = "wss://eu-west-1.avntestnet.artos.io";
 const LOCAL_NODE_URL = "ws://localhost:9944";
 
 const LOCAL_ALICE_SURI = '//Alice';
@@ -31,15 +31,26 @@ async function next_token_nonce(api: ApiPromise, sender: any) {
         return new BN(nonce);
     } else {
         return undefined;
-    }   
+    }
 }
 
 async function next_system_nonce(api: ApiPromise, account: any) {
     let account_data = await api.query.system.account(account.keys.address);
     return account_data.nonce.toNumber();
-  }
+}
 
-  const common_types = 
+async function token_balance(api: ApiPromise, account: any) {
+  if (api.query.tokenManager) {
+    let token_balance = await api.query.tokenManager.balances(["0xe6a88c4e961395c36396fc5f8bb4427bd0fc22f0", account.publicKeyAsHex]);
+    return new BN(token_balance).toString();
+  } else {
+      return undefined;
+  }
+}
+
+
+
+  const common_types =
     {
         "CheckResult": {
           "_enum": [
@@ -210,47 +221,39 @@ async function prepare_proxied_transfer (api: any, sender: any, receiver: any, r
       "amount" : amount,
       "nonce" : sender.nonce.toNumber()
     }
-  
+
     let proof = await signData(data_to_sign, sender.suri);
-  
+
     let inner_call = api.tx.tokenManager.signedTransfer(
       {signer: data_to_sign.from, relayer: data_to_sign.relayer, signature: {Sr25519: proof}},
       data_to_sign.from,
       data_to_sign.to,
       data_to_sign.token,
       data_to_sign.amount);
-  
+
 
     return await api.tx
       .tokenManager
       .proxy(inner_call);
   }
- 
 
-  async function setup(local_network: boolean): Promise<any> {
+
+  async function setup(url: string): Promise<any> {
     console.time("Setup");
-    
-    if (local_network === undefined) {
-      local_network = true;
-    }
 
     let api;
     let alice_suri;
 
-    if (local_network) {
-      api = await initialiseAPI(LOCAL_NODE_URL);
-      alice_suri = LOCAL_ALICE_SURI;
-    } else {
-      api = await initialiseAPI(EU_WEST_2_URL);
+    api = await initialiseAPI(url);
     //   alice_suri = TESTNET_ALICE_SURI;
     alice_suri = LOCAL_ALICE_SURI;
-    }
-  
+
+
     let keyring = new Keyring({type: 'sr25519'});
-  
+
     console.timeEnd("Setup");
     return [
-        api,        
+        api,
         keyring,
         alice_suri,
     ];
@@ -259,10 +262,10 @@ async function prepare_proxied_transfer (api: any, sender: any, receiver: any, r
   async function initialiseAPI(URL: string): Promise<ApiPromise> {
     let provider = new WsProvider(URL);
     let api = await ApiPromise.create({
-        provider, 
-        types: common_types          
+        provider,
+        types: common_types
     });
-    
+
     return api;
   }
 
@@ -281,7 +284,7 @@ async function setup_accounts(api: ApiPromise, keyring: Keyring, alice_suri: str
         accounts,
     ];
 }
-  
+
 async function build_account(api: ApiPromise, keyring: Keyring, suri: string) {
     let account: any = {};
     account.keys = keyring.addFromUri(suri);
@@ -290,17 +293,44 @@ async function build_account(api: ApiPromise, keyring: Keyring, suri: string) {
     account.nonce = await next_token_nonce(api, account);
     account.system_nonce = await next_system_nonce(api, account);
 
+    // console.log(`Token nonce for ${account.suri} with nonce: ${account.nonce}`);
+
     return account;
-}  
+}
+
+async function check_pending_transactions_for_network() {
+  let urls= ["ws://ec2-34-242-232-170.eu-west-1.compute.amazonaws.com:9944",
+    "ws://ec2-3-248-183-146.eu-west-1.compute.amazonaws.com:9944",
+    "ws://ec2-34-243-113-125.eu-west-1.compute.amazonaws.com:9944",
+    "ws://ec2-34-243-65-176.eu-west-1.compute.amazonaws.com:9944",
+    "ws://ec2-3-250-206-35.eu-west-1.compute.amazonaws.com:9944"];
+
+  let total_pending_txs = 0;
+
+  for (let i = 0; i < urls.length; i++) {
+    let [api, keyring, alice_suri] = await setup(urls[i]);
+    let pending_transactions = await api.rpc.author.pendingExtrinsics();
+    if (pending_transactions.length > 0) {
+      console.log(`${urls[i]} has ${pending_transactions.length} pending transactions`);
+    }
+    total_pending_txs+= pending_transactions.length;
+  }
+
+  console.log(`   - Total pending transactions: ${total_pending_txs}`);
+}
 
 export {
     token_id,
     pk_to_string,
     next_token_nonce,
-    next_system_nonce,    
+    next_system_nonce,
     signData,
     prepare_proxied_transfer,
     setup_accounts,
     setup,
     ONE,
+    token_balance,
+    BASE_TOKEN,
+    EU_WEST_2_URL,
+    check_pending_transactions_for_network,
 }

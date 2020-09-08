@@ -8,7 +8,6 @@ import * as avn from "./avn_helper";
 import * as cli from "./cli";
 
 async function run() {
- 
     let options = cli.execution_options();
 
     let TOTAL_TRANSACTIONS = options.number_of_tx || 25000;
@@ -36,30 +35,37 @@ async function run() {
 
     console.log(`TPS: ${TPS}, TX COUNT: ${TOTAL_TRANSACTIONS}`);
 
-    let [api, keyring, alice_suri] = await avn.setup(options.local_network);
+    let [api, keyring, alice_suri] = await avn.setup(avn.EU_WEST_2_URL);
     let [alice, accounts] = await avn.setup_accounts(api, keyring, alice_suri, TOTAL_USERS);
-    await aux.endow_users(api, alice, accounts, options.tx_type, TOTAL_BATCHES);
 
+    console.log("Checking for pending transactions in the network...");
+    await avn.check_pending_transactions_for_network();
+
+    console.log("Alice token balance - pre endowment: ", (await avn.token_balance(api, alice)) / avn.BASE_TOKEN);
+    await aux.endow_users(api, alice, accounts, options.tx_type, TOTAL_BATCHES);
     await aux.pending_transactions_cleared(api);
     console.log(".");
+    console.log("Alice token balance - post endowment: ", (await avn.token_balance(api, alice)) / avn.BASE_TOKEN);
 
     let thread_payloads = await aux.pre_generate_tx(
-      api, 
-      {alice, accounts, tx_type: options.tx_type}, 
+      api,
+      {alice, accounts, tx_type: options.tx_type},
       global_params);
-
-    let initialTime = new Date();
 
     await aux.pending_transactions_cleared(api);
     console.log("..");
 
+    let initialTime = new Date();
+
     await aux.send_transactions(thread_payloads, global_params);
 
-    await aux.pending_transactions_cleared(api, 10 * 1000);
+    await aux.pending_transactions_cleared(api);
 
     let finalTime = new Date();
 
-    await aux.report_substrate_diagnostics(api, initialTime, finalTime, options.tx_type);  
+    await aux.report_substrate_diagnostics(api, initialTime, finalTime, options.tx_type);
+
+    console.log("Alice token balance - closing: ", (await avn.token_balance(api, alice)) / avn.BASE_TOKEN);
 }
 
 // run();

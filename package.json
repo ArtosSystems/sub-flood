@@ -20,9 +20,9 @@
   },
   "homepage": "https://github.com/nikvolf/sub-bench#readme",
   "dependencies": {
-    "@polkadot/api": "^1.18.1",
-    "@polkadot/keyring": "^2.13.1",
-    "@polkadot/types": "^1.18.1"
+    "@polkadot/api": "^1.31.2",
+    "@polkadot/keyring": "^3.4.1",
+    "@polkadot/types": "^1.31.2"
   },
   "devDependencies": {
     "awesome-typescript-loader": "^5.2.1",

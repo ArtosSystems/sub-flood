@@ -42,15 +42,15 @@ async function endow_users(api: ApiPromise, alice: any, accounts: any[], tx_type
             alice.nonce = alice.nonce.add(avn.ONE);
             await tx.signAndSend(relayer.keys, { nonce: relayer.system_nonce });
             relayer.system_nonce++;
+        } else {
+            let transfer = api.tx.balances.transfer(receiver.keys.address, '1000000000000000');
+            // console.log(
+            //     `Alice -> ${receiver.suri} (${receiver.keys.address})`
+            // );
+
+            await transfer.signAndSend(alice.keys, { nonce: alice.system_nonce });
+            alice.system_nonce ++;
         }
-
-        let transfer = api.tx.balances.transfer(receiver.keys.address, '1000000000000000');
-        // console.log(
-        //     `Alice -> ${receiver.suri} (${receiver.keys.address})`
-        // );
-
-        await transfer.signAndSend(alice.keys, { nonce: alice.system_nonce });
-        alice.system_nonce ++;
     }
     console.log(`Last nonce: ${alice.system_nonce}`);
     console.log("All users endowed from Alice account!");
@@ -71,16 +71,16 @@ async function pre_generate_tx(api: ApiPromise, context: any, params: any) {
         for (var batchNo = 0; batchNo < params.TOTAL_BATCHES; batchNo ++) {
             let batch = [];
             for (var userNo = thread * params.USERS_PER_THREAD; userNo < (thread+1) * params.USERS_PER_THREAD; userNo++) {
-                let sender = context.accounts[userNo];              
-                
+                let sender = context.accounts[userNo];
+
                 let transfer;
                 let signedTransaction;
                 if (context.tx_type && context.tx_type === 'avt_transfer') {
                     transfer = await api.tx.balances.transfer(context.alice.keys.address, params.TOKENS_TO_SEND);
-                    signedTransaction = await transfer.sign(sender.keys, {nonce: sender.system_nonce});    
+                    signedTransaction = await transfer.sign(sender.keys, {nonce: sender.system_nonce});
                     sender.system_nonce++;
                 } else if (context.tx_type && context.tx_type === 'proxied') {
-                    
+
                     transfer = await avn.prepare_proxied_transfer(api, sender, receiver, relayer, 1);
                     sender.nonce = sender.nonce.add(avn.ONE);
                     signedTransaction = await transfer.sign(relayer.keys, { nonce: relayer.system_nonce });
@@ -89,14 +89,16 @@ async function pre_generate_tx(api: ApiPromise, context: any, params: any) {
 
                 if (signedTransaction) {
                     batch.push(signedTransaction);
+                    sanityCounter++;
+                } else {
+                    console.log("*********** ERROR pushing txs to batch");
                 }
-
-                sanityCounter++;
             }
             batches.push(batch);
         }
         thread_payloads.push(batches);
     }
+
     console.timeEnd(`Pregenerating ${sanityCounter} transactions across ${params.TOTAL_THREADS} threads...`);
     console.log(`Last nonce: ${context.alice.system_nonce}`);
     return thread_payloads;
@@ -104,6 +106,7 @@ async function pre_generate_tx(api: ApiPromise, context: any, params: any) {
 
 async function send_transactions(thread_payloads: any[][][], global_params: any) {
     let nextTime = new Date().getTime();
+    let total_tx_sent = 0;
     for (var batchNo = 0; batchNo < global_params.TOTAL_BATCHES; batchNo++) {
 
         while (new Date().getTime() < nextTime) {
@@ -122,25 +125,29 @@ async function send_transactions(thread_payloads: any[][][], global_params: any)
                     new Promise<number>(async resolve => {
                         let transaction = thread_payloads[threadNo][batchNo][transactionNo];
                         if (transaction) {
-                            resolve(await transaction.send().catch((err: any) => {
-                                errors.push(err);
-                                return -1;
-                            }));
+                            total_tx_sent++;
+                            resolve(
+                                await transaction.send().catch((err: any) => {
+                                    errors.push(err);
+                                    return -1;
+                                })
+                            );
                         } else {
                             resolve(transactionNo);
                         }
                     })
                 );
             }
-        }      
+        }
         await Promise.all(batchPromises);
         if (errors.length > 0) {
             console.log(`${errors.length}/${global_params.TRANSACTION_PER_BATCH} errors sending transactions`);
-            for (let i = 0; i < Math.max(10, errors.length); i++) {
+            for (let i = 0; i < Math.min(10, errors.length); i++) {
                 console.log(`Error: ${errors[i]}`);
             }
         }
     }
+    console.log(`Total tx sent: ${total_tx_sent}`);
 }
 
 async function report_substrate_diagnostics(api: ApiPromise, initialTime: any, finalTime: any, tx_type:string) {
@@ -156,11 +163,14 @@ async function report_substrate_diagnostics(api: ApiPromise, initialTime: any, f
         filter_name = 'tokenManager';
     }
     var latest_block = await getBlockStats(api, [filter_name]);
- 
+
     console.log(`latest block: ${latest_block.date}`);
     console.log(`initial time: ${initialTime}`);
-    for (; latest_block.date > initialTime; latest_block = await getBlockStats(api, ['balances'], latest_block.parent)) {
-        if (latest_block.date < finalTime && latest_block.transactions > 0) {
+    for (; latest_block.date > initialTime; latest_block = await getBlockStats(api, [filter_name], latest_block.parent)) {
+        if (latest_block.date < finalTime) {
+            if (latest_block.transactions <= 0) {
+                console.log(`Block ${latest_block.date} (${latest_block.block_number}) doesnt have any eligible transactions`);
+            }
             console.log(`block at ${latest_block.date} (${latest_block.block_number}) - ${latest_block.block_hash}: ${latest_block.transactions} transactions`);
             total_transactions += latest_block.transactions;
             total_blocks ++;
@@ -168,7 +178,7 @@ async function report_substrate_diagnostics(api: ApiPromise, initialTime: any, f
     }
 
     let tps = (total_transactions * 1000) / diff;
-    
+
     console.log(`TPS from ${total_blocks} blocks: ${tps}`);
     console.log(`Total transactions ${total_transactions}`);
 }
@@ -182,7 +192,7 @@ async function pending_transactions_cleared(api: ApiPromise, max_wait?: number) 
     if (max_wait) {
         final_time = final_time + max_wait;
     }
-    
+
     let pending_transactions = await api.rpc.author.pendingExtrinsics();
     console.log("pending_transactions: " + pending_transactions.length);
     while (pending_transactions.length > 0) {
@@ -191,7 +201,7 @@ async function pending_transactions_cleared(api: ApiPromise, max_wait?: number) 
       console.log("pending_transactions: " + pending_transactions.length);
       if (max_wait) {
         if (new Date().getTime() > final_time) break;
-      }      
+      }
     }
 }
 
