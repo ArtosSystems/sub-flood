@@ -126,12 +126,14 @@ async function send_transactions(thread_payloads: any[][][], global_params: any)
                         let transaction = thread_payloads[threadNo][batchNo][transactionNo];
                         if (transaction) {
                             total_tx_sent++;
-                            resolve(
-                                await transaction.send().catch((err: any) => {
-                                    errors.push(err);
-                                    return -1;
-                                })
-                            );
+                            resolve(await transaction.send()
+                            .then((value: any) => {
+                                console.log(`Transaction finished. Batch: ${batchNo}, Thread: ${threadNo}, User: ${transactionNo}`);
+                            })
+                            .catch((err: any) => {
+                                errors.push(err);
+                                return -1;
+                            }));
                         } else {
                             resolve(transactionNo);
                         }
@@ -139,13 +141,22 @@ async function send_transactions(thread_payloads: any[][][], global_params: any)
                 );
             }
         }
-        await Promise.all(batchPromises);
+
+        let r = await Promise.all(batchPromises).catch((err: any) => {
+            console.log("************ERROR sending batch********", err);
+            errors.push(err);
+            return [];
+        });
+
+        console.log("Successfully sent transactions: ", r.length);
+
         if (errors.length > 0) {
             console.log(`${errors.length}/${global_params.TRANSACTION_PER_BATCH} errors sending transactions`);
             for (let i = 0; i < Math.min(10, errors.length); i++) {
                 console.log(`Error: ${errors[i]}`);
             }
         }
+
     }
     console.log(`Total tx sent: ${total_tx_sent}`);
 }

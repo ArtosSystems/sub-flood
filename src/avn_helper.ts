@@ -252,6 +252,15 @@ async function prepare_proxied_transfer (api: any, sender: any, receiver: any, r
     let keyring = new Keyring({type: 'sr25519'});
 
     console.timeEnd("Setup");
+
+    const [chain, nodeName, nodeVersion] = await Promise.all([
+      api.rpc.system.chain(),
+      api.rpc.system.name(),
+      api.rpc.system.version()
+    ]);
+
+    console.log(`\n  You are connected to chain ${chain} at ${url} using ${nodeName} v${nodeVersion}\n`);
+
     return [
         api,
         keyring,
@@ -271,7 +280,7 @@ async function prepare_proxied_transfer (api: any, sender: any, receiver: any, r
 
 async function setup_accounts(api: ApiPromise, keyring: Keyring, alice_suri: string, other_accounts: number) {
     console.time("Setting accounts and fetching nonces");
-    let alice = await build_account(api, keyring, alice_suri);;
+    let alice = await build_account(api, keyring, alice_suri);
 
     let accounts = [];
     for (let i = 0; i < other_accounts; i++) {
@@ -299,11 +308,12 @@ async function build_account(api: ApiPromise, keyring: Keyring, suri: string) {
 }
 
 async function check_pending_transactions_for_network() {
-  let urls= ["ws://ec2-34-242-232-170.eu-west-1.compute.amazonaws.com:9944",
-    "ws://ec2-3-248-183-146.eu-west-1.compute.amazonaws.com:9944",
-    "ws://ec2-34-243-113-125.eu-west-1.compute.amazonaws.com:9944",
-    "ws://ec2-34-243-65-176.eu-west-1.compute.amazonaws.com:9944",
-    "ws://ec2-3-250-206-35.eu-west-1.compute.amazonaws.com:9944"];
+  let urls= ["ws://ec2-3-248-211-63.eu-west-1.compute.amazonaws.com:9944",
+    "ws://ec2-54-72-231-158.eu-west-1.compute.amazonaws.com:9944",
+    "ws://ec2-63-34-10-106.eu-west-1.compute.amazonaws.com:9944",
+    "ws://ec2-54-155-132-19.eu-west-1.compute.amazonaws.com:9944",
+    "ws://ec2-34-240-1-144.eu-west-1.compute.amazonaws.com:9944"];
+  //let urls= [LOCAL_NODE_URL];
 
   let total_pending_txs = 0;
 
@@ -332,5 +342,6 @@ export {
     token_balance,
     BASE_TOKEN,
     EU_WEST_2_URL,
+    LOCAL_NODE_URL,
     check_pending_transactions_for_network,
 }
