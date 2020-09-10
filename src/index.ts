@@ -19,7 +19,7 @@ async function run() {
 
     let TOTAL_USERS = TPS;
     let USERS_PER_THREAD = TOTAL_USERS / TOTAL_THREADS;
-    let TOKENS_TO_SEND = 1;
+    let TOKENS_TO_SEND = avn.MICRO_BASE_TOKEN;
 
 
     if (!Number.isInteger(USERS_PER_THREAD)) {

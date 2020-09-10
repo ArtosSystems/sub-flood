@@ -344,4 +344,5 @@ export {
     EU_WEST_2_URL,
     LOCAL_NODE_URL,
     check_pending_transactions_for_network,
+    MICRO_BASE_TOKEN,
 }
