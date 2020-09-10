@@ -81,7 +81,7 @@ async function pre_generate_tx(api: ApiPromise, context: any, params: any) {
                     sender.system_nonce++;
                 } else if (context.tx_type && context.tx_type === 'proxied') {
 
-                    transfer = await avn.prepare_proxied_transfer(api, sender, receiver, relayer, 1);
+                    transfer = await avn.prepare_proxied_transfer(api, sender, receiver, relayer, params.TOKENS_TO_SEND);
                     sender.nonce = sender.nonce.add(avn.ONE);
                     signedTransaction = await transfer.sign(relayer.keys, { nonce: relayer.system_nonce });
                     relayer.system_nonce++;
@@ -127,11 +127,12 @@ async function send_transactions(thread_payloads: any[][][], global_params: any)
                         if (transaction) {
                             total_tx_sent++;
                             resolve(await transaction.send()
-                            .then((value: any) => {
-                                console.log(`Transaction finished. Batch: ${batchNo}, Thread: ${threadNo}, User: ${transactionNo}`);
-                            })
+                            // .then((value: any) => {
+                            //     console.log(`Transaction finished. Batch: ${batchNo}, Thread: ${threadNo}, User: ${transactionNo}`);
+                            // })
                             .catch((err: any) => {
                                 errors.push(err);
+                                console.log(`Error - Batch: ${batchNo}, Thread: ${threadNo}, User: ${transactionNo}`);
                                 return -1;
                             }));
                         } else {
@@ -198,7 +199,7 @@ async function sleep(milliseconds: number) {
     await new Promise(r => setTimeout(r, milliseconds));
 }
 
-async function pending_transactions_cleared(api: ApiPromise, max_wait?: number) {
+async function pending_transactions_cleared(api: ApiPromise, min_num_pending_tx: number, max_wait?: number) {
     let final_time = new Date().getTime();
     if (max_wait) {
         final_time = final_time + max_wait;
@@ -206,7 +207,7 @@ async function pending_transactions_cleared(api: ApiPromise, max_wait?: number) 
 
     let pending_transactions = await api.rpc.author.pendingExtrinsics();
     console.log("pending_transactions: " + pending_transactions.length);
-    while (pending_transactions.length > 0) {
+    while (pending_transactions.length > min_num_pending_tx) {
       await sleep(100);
       pending_transactions = await api.rpc.author.pendingExtrinsics();
       console.log("pending_transactions: " + pending_transactions.length);

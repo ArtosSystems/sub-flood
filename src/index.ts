@@ -14,12 +14,13 @@ async function run() {
     let TPS = options.target_tps || 1000;
     let TOTAL_BATCHES = TOTAL_TRANSACTIONS/TPS;
 
-    let TOTAL_THREADS = 10;
+    let TOTAL_THREADS = 1;
     let TRANSACTION_PER_BATCH = TPS / TOTAL_THREADS;
 
     let TOTAL_USERS = TPS;
     let USERS_PER_THREAD = TOTAL_USERS / TOTAL_THREADS;
     let TOKENS_TO_SEND = 1;
+
 
     if (!Number.isInteger(USERS_PER_THREAD)) {
         console.log(`USERS_PRE_THREAD is not an integer. Please make TPS a multiple of ${TOTAL_THREADS}`);
@@ -43,7 +44,7 @@ async function run() {
 
     console.log("Alice token balance - pre endowment: ", (await avn.token_balance(api, alice)) / avn.BASE_TOKEN);
     await aux.endow_users(api, alice, accounts, options.tx_type, TOTAL_BATCHES);
-    await aux.pending_transactions_cleared(api);
+    await aux.pending_transactions_cleared(api, 0);
     console.log(".");
     console.log("Alice token balance - post endowment: ", (await avn.token_balance(api, alice)) / avn.BASE_TOKEN);
 
@@ -52,14 +53,14 @@ async function run() {
       {alice, accounts, tx_type: options.tx_type},
       global_params);
 
-    await aux.pending_transactions_cleared(api);
+    await aux.pending_transactions_cleared(api, 0);
     console.log("..");
 
     let initialTime = new Date();
 
     await aux.send_transactions(thread_payloads, global_params);
 
-    await aux.pending_transactions_cleared(api);
+    await aux.pending_transactions_cleared(api, 20);
 
     let finalTime = new Date();
 
