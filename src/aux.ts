@@ -179,10 +179,7 @@ async function report_substrate_diagnostics(api: ApiPromise, initialTime: any, f
     console.log(`latest block: ${latest_block.date}`);
     console.log(`initial time: ${initialTime}`);
     for (; latest_block.date > initialTime; latest_block = await getBlockStats(api, [filter_name], latest_block.parent)) {
-        if (latest_block.date < finalTime) {
-            if (latest_block.transactions <= 0) {
-                console.log(`Block ${latest_block.date} (${latest_block.block_number}) doesnt have any eligible transactions`);
-            }
+        if (latest_block.date < finalTime && latest_block.transactions > 0) {
             console.log(`block at ${latest_block.date} (${latest_block.block_number}) - ${latest_block.block_hash}: ${latest_block.transactions} transactions`);
             total_transactions += latest_block.transactions;
             total_blocks ++;
